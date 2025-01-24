@@ -12,7 +12,7 @@ pub const Fiber = @import("fiber.zig").Fiber;
 
 pub fn connect(host: []const u8, port: u16) !Fd {
     // TODO: connect() should be non-blocking too
-    const conn = try std.net.tcpConnectToHost(std.heap.c_allocator, host, port);
+    const conn = try std.net.tcpConnectToHost(std.heap.page_allocator, host, port);
     _ = try std.posix.fcntl(conn.handle, std.posix.F.SETFL, std.posix.SOCK.NONBLOCK);
     return conn.handle;
 }

@@ -23,7 +23,7 @@ fn example() !void {
     std.debug.print("write\n", .{});
     try nio.write(conn, "GET / HTTP/1.1\r\nHost: www.google.com\r\nUser-Agent: nio.zig\r\nConnection: close\r\n\r\n");
 
-    var res = std.ArrayList(u8).init(std.heap.c_allocator);
+    var res = std.ArrayList(u8).init(std.heap.page_allocator);
     defer res.deinit();
 
     var buf: [1024]u8 = undefined;

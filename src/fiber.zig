@@ -18,12 +18,16 @@ pub const Fiber = struct {
         self.op = .{ .data = .{ .fiber = self } };
 
         const H = struct {
-            fn entry() callconv(.C) void {
+            fn entry() callconv(.C) noreturn {
                 // std.debug.print("entry\n", .{});
                 fun() catch |e| {
                     std.debug.print("err: {s}\n", .{@errorName(e)});
                     @panic("err");
                 };
+
+                var x: ?*Op = null;
+                Fiber.yield(&x);
+                unreachable;
             }
         };
 

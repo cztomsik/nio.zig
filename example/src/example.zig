@@ -26,7 +26,7 @@ fn example() !void {
     var res = std.ArrayList(u8).init(std.heap.c_allocator);
     defer res.deinit();
 
-    var buf: [4 * 1024]u8 = undefined;
+    var buf: [1024]u8 = undefined;
     std.debug.print("read\n", .{});
     while (try nio.read(conn, &buf)) |data| {
         std.debug.print("got {}\n", .{data.len});

@@ -103,9 +103,7 @@ pub const Loop = struct {
         current = self;
         defer current = null;
 
-        for (0..11) |_| { // do just a few ticks for the sake of PoC
-            // std.debug.print("tick {}\n", .{i});
-
+        while (self.alive()) {
             while (take(&self.ready)) |op| {
                 if (!op.data.attempt()) {
                     self.add(op);
@@ -122,6 +120,10 @@ pub const Loop = struct {
                 prepend(&self.ready, op);
             }
         }
+    }
+
+    fn alive(self: *Loop) bool {
+        return self.pending != null or self.ready != null;
     }
 
     fn prepareChanges(self: *Loop, buf: []std.posix.Kevent) []const std.posix.Kevent {

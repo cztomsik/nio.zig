@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 
 const Channel = @import("channel.zig").Channel;
@@ -14,14 +15,14 @@ pub const Op = struct {
         write: struct { fd: Fd, data: []const u8, chan: *Channel(WriteError!void) },
         fiber: *Fiber,
 
-        fn fd(self: @This()) Fd {
+        pub fn fd(self: @This()) Fd {
             return switch (self) {
                 .fiber => unreachable,
                 inline else => |d| d.fd,
             };
         }
 
-        fn rw(self: @This()) bool {
+        pub fn rw(self: @This()) bool {
             return switch (self) {
                 .fiber => unreachable,
                 .read => true,
@@ -29,7 +30,7 @@ pub const Op = struct {
             };
         }
 
-        fn attempt(self: *@This()) bool {
+        pub fn attempt(self: *@This()) bool {
             // std.debug.print("attempt: {s}\n", .{@tagName(self.*)});
 
             switch (self.*) {
@@ -74,81 +75,53 @@ pub const Op = struct {
             }
         }
     },
+
+    pub fn take(q: *?*Op) ?*Op {
+        const op = q.* orelse return null;
+        q.* = op.next;
+        return op;
+    }
+
+    pub fn prepend(q: *?*Op, op: *Op) void {
+        op.next = q.*;
+        q.* = op;
+    }
 };
 
 pub const Loop = struct {
-    kq: i32,
     ready: ?*Op = null,
     pending: ?*Op = null,
 
-    pub threadlocal var current: ?*Loop = null;
-
-    pub fn init() !Loop {
-        return .{
-            .kq = try std.posix.kqueue(),
-        };
-    }
-
-    pub fn deinit(self: *Loop) void {
-        std.posix.close(self.kq);
-    }
-
     pub fn add(self: *Loop, op: *Op) void {
-        prepend(if (op.data == .fiber) &self.ready else &self.pending, op);
+        Op.prepend(if (op.data == .fiber) &self.ready else &self.pending, op);
     }
 
     pub fn run(self: *Loop) !void {
-        var buf: [16]std.posix.Kevent = undefined;
+        const B = switch (builtin.os.tag) {
+            .macos => @import("backend.zig").Kqueue,
+            .linux => @import("backend.zig").Epoll,
+            else => @compileError("TODO"),
+        };
 
-        current = self;
-        defer current = null;
+        var backend = try B.init();
+        defer backend.deinit();
 
+        try self.runWith(&backend);
+    }
+
+    pub fn runWith(self: *Loop, backend: anytype) !void {
         while (self.alive()) {
-            while (take(&self.ready)) |op| {
+            while (Op.take(&self.ready)) |op| {
                 if (!op.data.attempt()) {
                     self.add(op);
                 }
             }
 
-            const chs = self.prepareChanges(&buf);
-            var t: std.posix.timespec = .{ .nsec = 500_000_000, .sec = 0 }; // TODO: (nextTimer or -1) if we didn't register anything
-
-            const n = try std.posix.kevent(self.kq, chs, &buf, &t);
-
-            for (buf[0..n]) |ev| {
-                const op: *Op = @ptrFromInt(ev.udata);
-                prepend(&self.ready, op);
-            }
+            try backend.tick(self);
         }
     }
 
     fn alive(self: *Loop) bool {
         return self.pending != null or self.ready != null;
     }
-
-    fn prepareChanges(self: *Loop, buf: []std.posix.Kevent) []const std.posix.Kevent {
-        for (buf, 0..) |*e, i| {
-            const op = take(&self.pending) orelse return buf[0..i];
-
-            e.* = .{
-                .ident = @intCast(op.data.fd()),
-                .filter = if (op.data.rw()) std.c.EVFILT.READ else std.c.EVFILT.WRITE,
-                .flags = std.c.EV.ADD | std.c.EV.ENABLE | std.c.EV.ONESHOT,
-                .fflags = 0,
-                .data = 0,
-                .udata = @intFromPtr(op),
-            };
-        } else return buf;
-    }
 };
-
-fn take(q: *?*Op) ?*Op {
-    const op = q.* orelse return null;
-    q.* = op.next;
-    return op;
-}
-
-fn prepend(q: *?*Op, op: *Op) void {
-    op.next = q.*;
-    q.* = op;
-}

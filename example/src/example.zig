@@ -6,13 +6,10 @@ var x: [100 * 1024]u8 = undefined; // TODO: looks like we need a lot (otherwise 
 pub const Panic = std.debug.SimplePanic;
 
 pub fn main() !void {
-    var loop = try nio.Loop.init();
-    defer loop.deinit();
-
     const fib = nio.Fiber.init(&x, example);
-    loop.add(&fib.op);
+    nio.loop.add(&fib.op);
 
-    try loop.run();
+    try nio.loop.run();
 }
 
 fn example() !void {

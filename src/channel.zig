@@ -1,5 +1,5 @@
 const std = @import("std");
-const Loop = @import("loop.zig").Loop;
+const nio = @import("nio.zig");
 const Op = @import("loop.zig").Op;
 const Fiber = @import("fiber.zig").Fiber;
 
@@ -54,7 +54,7 @@ pub fn Channel(comptime T: type) type {
         fn maybeResume(self: *CH) void {
             const op = self.q orelse return;
             self.q = op.next;
-            Loop.current.?.add(op);
+            nio.loop.add(op);
         }
     };
 }

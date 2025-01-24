@@ -10,6 +10,8 @@ pub const Op = @import("loop.zig").Op;
 pub const Channel = @import("channel.zig").Channel;
 pub const Fiber = @import("fiber.zig").Fiber;
 
+pub threadlocal var loop: Loop = .{};
+
 pub fn connect(host: []const u8, port: u16) !Fd {
     // TODO: connect() should be non-blocking too
     const conn = try std.net.tcpConnectToHost(std.heap.page_allocator, host, port);
@@ -25,13 +27,13 @@ pub fn close(x: anytype) void {
 pub fn read(x: anytype, buf: []u8) ReadError!?[]u8 {
     var chan: Channel(ReadError!?[]u8) = .frozen;
     var op: Op = .{ .data = .{ .read = .{ .fd = x, .buf = buf, .chan = &chan } } };
-    Loop.current.?.add(&op);
+    loop.add(&op);
     return chan.once();
 }
 
 pub fn write(x: anytype, data: []const u8) WriteError!void {
     var chan: Channel(WriteError!void) = .frozen;
     var op: Op = .{ .data = .{ .write = .{ .fd = x, .data = data, .chan = &chan } } };
-    Loop.current.?.add(&op);
+    loop.add(&op);
     return chan.once();
 }

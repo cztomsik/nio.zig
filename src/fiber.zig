@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const Op = @import("loop.zig").Op;
 const jmp_buf = [32]c_long; // https://git.musl-libc.org/cgit/musl/tree/arch/arm/bits/setjmp.h?id=d6c0efe106b1016108207fb6872820c06dcef4f8
@@ -62,42 +63,77 @@ pub const Fiber = struct {
 extern fn setjmp(*anyopaque) c_int;
 extern fn longjmp(*anyopaque, c_int) noreturn;
 
-// (MIT) https://git.musl-libc.org/cgit/musl/tree/src/setjmp/aarch64
+// (MIT)
+// https://git.musl-libc.org/cgit/musl/tree/src/setjmp/aarch64
+// https://git.musl-libc.org/cgit/musl/tree/src/setjmp/x86_64
 comptime {
-    asm (
-        \\.global _setjmp
-        \\_setjmp:
-        \\  stp x19, x20, [x0,#0]
-        \\  stp x21, x22, [x0,#16]
-        \\  stp x23, x24, [x0,#32]
-        \\  stp x25, x26, [x0,#48]
-        \\  stp x27, x28, [x0,#64]
-        \\  stp x29, x30, [x0,#80]
-        \\  mov x2, sp
-        \\  str x2, [x0,#104]
-        \\  stp  d8,  d9, [x0,#112]
-        \\  stp d10, d11, [x0,#128]
-        \\  stp d12, d13, [x0,#144]
-        \\  stp d14, d15, [x0,#160]
-        \\  mov x0, #0
-        \\  ret
-        \\
-        \\.global _longjmp
-        \\_longjmp:
-        \\  ldp x19, x20, [x0,#0]
-        \\  ldp x21, x22, [x0,#16]
-        \\  ldp x23, x24, [x0,#32]
-        \\  ldp x25, x26, [x0,#48]
-        \\  ldp x27, x28, [x0,#64]
-        \\  ldp x29, x30, [x0,#80]
-        \\  ldr x2, [x0,#104]
-        \\  mov sp, x2
-        \\  ldp d8 , d9, [x0,#112]
-        \\  ldp d10, d11, [x0,#128]
-        \\  ldp d12, d13, [x0,#144]
-        \\  ldp d14, d15, [x0,#160]
-        \\  cmp w1, 0
-        \\  csinc w0, w1, wzr, ne
-        \\  br x30
-    );
+    switch (builtin.cpu.arch) {
+        .aarch64 => asm (
+            \\.global _setjmp
+            \\_setjmp:
+            \\  stp x19, x20, [x0,#0]
+            \\  stp x21, x22, [x0,#16]
+            \\  stp x23, x24, [x0,#32]
+            \\  stp x25, x26, [x0,#48]
+            \\  stp x27, x28, [x0,#64]
+            \\  stp x29, x30, [x0,#80]
+            \\  mov x2, sp
+            \\  str x2, [x0,#104]
+            \\  stp  d8,  d9, [x0,#112]
+            \\  stp d10, d11, [x0,#128]
+            \\  stp d12, d13, [x0,#144]
+            \\  stp d14, d15, [x0,#160]
+            \\  mov x0, #0
+            \\  ret
+            \\
+            \\.global _longjmp
+            \\_longjmp:
+            \\  ldp x19, x20, [x0,#0]
+            \\  ldp x21, x22, [x0,#16]
+            \\  ldp x23, x24, [x0,#32]
+            \\  ldp x25, x26, [x0,#48]
+            \\  ldp x27, x28, [x0,#64]
+            \\  ldp x29, x30, [x0,#80]
+            \\  ldr x2, [x0,#104]
+            \\  mov sp, x2
+            \\  ldp d8 , d9, [x0,#112]
+            \\  ldp d10, d11, [x0,#128]
+            \\  ldp d12, d13, [x0,#144]
+            \\  ldp d14, d15, [x0,#160]
+            \\  cmp w1, 0
+            \\  csinc w0, w1, wzr, ne
+            \\  br x30
+        ),
+        .x86_64 => asm (
+            \\_setjmp:
+            \\setjmp:
+            \\  mov %rbx,(%rdi)         
+            \\  mov %rbp,8(%rdi)
+            \\  mov %r12,16(%rdi)
+            \\  mov %r13,24(%rdi)
+            \\  mov %r14,32(%rdi)
+            \\  mov %r15,40(%rdi)
+            \\  lea 8(%rsp),%rdx        
+            \\  mov %rdx,48(%rdi)
+            \\  mov (%rsp),%rdx         
+            \\  mov %rdx,56(%rdi)
+            \\  xor %eax,%eax           
+            \\  ret
+            \\
+            \\.global _longjmp
+            \\_longjmp:
+            \\  xor %eax,%eax
+            \\  cmp $1,%esi             
+            \\  adc %esi,%eax           
+            \\  mov (%rdi),%rbx         
+            \\  mov 8(%rdi),%rbp
+            \\  mov 16(%rdi),%r12
+            \\  mov 24(%rdi),%r13
+            \\  mov 32(%rdi),%r14
+            \\  mov 40(%rdi),%r15
+            \\  mov 48(%rdi),%rsp
+            \\  jmp *56(%rdi)           
+        ),
+        else => @compileError("TODO"),
+    }
 }

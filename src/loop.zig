@@ -23,11 +23,13 @@ pub const Op = struct {
         }
 
         pub fn rw(self: @This()) bool {
-            return switch (self) {
-                .fiber => unreachable,
-                .read => true,
-                else => false,
-            };
+            // return switch (self) {
+            //     .fiber => unreachable,
+            //     .read => true,
+            //     else => false,
+            // };
+
+            return @intFromEnum(self) % 2 == 0;
         }
 
         pub fn attempt(self: *@This()) bool {
@@ -91,6 +93,7 @@ pub const Op = struct {
 pub const Loop = struct {
     ready: ?*Op = null,
     pending: ?*Op = null,
+    waiting: usize = 0,
 
     pub fn add(self: *Loop, op: *Op) void {
         Op.prepend(if (op.data == .fiber) &self.ready else &self.pending, op);
@@ -122,6 +125,6 @@ pub const Loop = struct {
     }
 
     fn alive(self: *Loop) bool {
-        return self.pending != null or self.ready != null;
+        return self.ready != null or self.pending != null or self.waiting > 0;
     }
 };

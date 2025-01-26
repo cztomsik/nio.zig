@@ -107,7 +107,7 @@ comptime {
             \\  br x30
         ),
         .x86_64 => asm (
-            \\_setjmp:
+            \\.global setjmp
             \\setjmp:
             \\  mov %rbx,(%rdi)         
             \\  mov %rbp,8(%rdi)
@@ -122,8 +122,8 @@ comptime {
             \\  xor %eax,%eax           
             \\  ret
             \\
-            \\.global _longjmp
-            \\_longjmp:
+            \\.global longjmp
+            \\longjmp:
             \\  xor %eax,%eax
             \\  cmp $1,%esi             
             \\  adc %esi,%eax           

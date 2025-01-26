@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
-
+const Kqueue = @import("backend.zig").Kqueue;
+const Epoll = @import("backend.zig").Epoll;
 const Channel = @import("channel.zig").Channel;
 const Fiber = @import("fiber.zig").Fiber;
 
@@ -93,6 +94,7 @@ pub const Op = struct {
 pub const Loop = struct {
     ready: ?*Op = null,
     pending: ?*Op = null,
+    // timers: ?*Op = null,
     waiting: usize = 0,
 
     pub fn add(self: *Loop, op: *Op) void {
@@ -101,8 +103,8 @@ pub const Loop = struct {
 
     pub fn run(self: *Loop) !void {
         const B = switch (builtin.os.tag) {
-            .macos => @import("backend.zig").Kqueue,
-            .linux => @import("backend.zig").Epoll,
+            .macos => Kqueue,
+            .linux => Epoll,
             else => @compileError("TODO"),
         };
 
@@ -125,6 +127,9 @@ pub const Loop = struct {
     }
 
     fn alive(self: *Loop) bool {
-        return self.ready != null or self.pending != null or self.waiting > 0;
+        return self.ready != null or
+            self.pending != null or
+            // self.timers != null or
+            self.waiting > 0;
     }
 };

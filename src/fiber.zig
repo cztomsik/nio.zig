@@ -51,9 +51,7 @@ pub const Fiber = struct {
     pub noinline fn yield(q: *?*Op) callconv(.C) void {
         // std.debug.print("yield\n", .{});
         const fib = curr orelse unreachable;
-
-        fib.op.next = q.*;
-        q.* = &fib.op;
+        Op.prepend(q, &fib.op);
 
         if (setjmp(&fib.env) != 0) return;
         longjmp(&fib.prev, 1);

@@ -1,4 +1,12 @@
-// TODO: multiple ops can "override" each other
+// NOTE: We only support one read and one write operation per file descriptor.
+// This should be fine, because concurrent reading from the same byte stream
+// is likely a (serious) mistake. So the problem is not that we don't support
+// something which nobody wants to do. The problem is rather how to detect this
+// and tell the user. This is currently a TODO. When we add timeouts (TODO),
+// such cases should pop-out eventually, and maybe that's enough.
+//
+// BTW: if you ever hit this, just create a channel and share it across all your
+//      readers/writers and that's it.
 
 const std = @import("std");
 const Loop = @import("loop.zig").Loop;

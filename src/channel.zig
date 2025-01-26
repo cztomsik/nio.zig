@@ -38,7 +38,7 @@ pub fn Channel(comptime T: type) type {
             while (self.isFull()) Fiber.yield(&self.q);
             self.buf[(self.w + 1) % self.buf.len] = v;
             self.w = (self.w + 1) % (2 * self.buf.len);
-            return self.maybeResume();
+            self.maybeResume();
         }
 
         pub fn once(self: *CH) T {
@@ -52,9 +52,9 @@ pub fn Channel(comptime T: type) type {
         }
 
         fn maybeResume(self: *CH) void {
-            const op = self.q orelse return;
-            self.q = op.next;
-            nio.loop.add(op);
+            if (Op.take(&self.q)) |op| {
+                nio.loop.add(op);
+            }
         }
     };
 }

@@ -37,7 +37,8 @@ pub const Fiber = struct {
             },
             .x86_64 => {
                 self.env[1] = @intFromPtr(sp);
-                pushq(&sp, @intFromPtr(&H.entry));
+                sp -= 1;
+                sp[0] = @intFromPtr(&H.entry);
                 self.env[6] = @intFromPtr(sp);
                 self.env[7] = @intFromPtr(&H.entry);
             },
@@ -66,11 +67,6 @@ pub const Fiber = struct {
 
 extern fn setjmp(*anyopaque) c_int;
 extern fn longjmp(*anyopaque, c_int) noreturn;
-
-fn pushq(sp: *[*]usize, v: usize) void {
-    sp -= 2;
-    sp[0] = v;
-}
 
 // https://git.musl-libc.org/cgit/musl/tree/arch/arm/bits/setjmp.h
 // https://git.musl-libc.org/cgit/musl/tree/arch/x86_64/bits/setjmp.h

@@ -1,7 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
 const Op = @import("loop.zig").Op;
-const jmp_buf = [32]c_long; // https://git.musl-libc.org/cgit/musl/tree/arch/arm/bits/setjmp.h?id=d6c0efe106b1016108207fb6872820c06dcef4f8
 
 threadlocal var curr: ?*Fiber = null;
 
@@ -12,12 +11,6 @@ pub const Fiber = struct {
 
     // TODO: args, err handling, ...
     pub fn init(stack: []u8, fun: anytype) *Fiber {
-        @memset(stack, 0);
-
-        const self: *Fiber = @ptrCast(@alignCast(stack.ptr));
-
-        self.op = .{ .data = .{ .fiber = self } };
-
         const H = struct {
             fn entry() callconv(.C) noreturn {
                 // std.debug.print("entry\n", .{});
@@ -32,11 +25,24 @@ pub const Fiber = struct {
             }
         };
 
-        const sp: **usize = @ptrCast(@alignCast(&self.env[104 / 8]));
-        sp.* = @ptrFromInt(std.mem.alignBackward(usize, @intFromPtr(stack.ptr) + stack.len, 2 * @sizeOf(usize))); // Growing DOWN, dword-aligned, at least for macos
+        var sp: [*]usize = @ptrFromInt(std.mem.alignBackward(usize, @intFromPtr(stack.ptr) + stack.len - 32, 32));
 
-        const entry: **const @TypeOf(H.entry) = @ptrCast(@alignCast(&self.env[88 / 8]));
-        entry.* = &H.entry;
+        const self: *Fiber = @ptrCast(@alignCast(stack.ptr));
+        self.op = .{ .data = .{ .fiber = self } };
+
+        switch (builtin.cpu.arch) {
+            .aarch64 => {
+                self.env[11] = @intFromPtr(&H.entry);
+                self.env[13] = @intFromPtr(sp);
+            },
+            .x86_64 => {
+                self.env[1] = @intFromPtr(sp);
+                pushq(&sp, @intFromPtr(&H.entry));
+                self.env[6] = @intFromPtr(sp);
+                self.env[7] = @intFromPtr(&H.entry);
+            },
+            else => @compileError("TODO"),
+        }
 
         return self;
     }
@@ -60,6 +66,19 @@ pub const Fiber = struct {
 
 extern fn setjmp(*anyopaque) c_int;
 extern fn longjmp(*anyopaque, c_int) noreturn;
+
+fn pushq(sp: *[*]usize, v: usize) void {
+    sp -= 2;
+    sp[0] = v;
+}
+
+// https://git.musl-libc.org/cgit/musl/tree/arch/arm/bits/setjmp.h
+// https://git.musl-libc.org/cgit/musl/tree/arch/x86_64/bits/setjmp.h
+const jmp_buf = switch (builtin.cpu.arch) {
+    .aarch64 => [32]usize,
+    .x86_64 => [8]usize,
+    else => @compileError("TODO"),
+};
 
 // (MIT)
 // https://git.musl-libc.org/cgit/musl/tree/src/setjmp/aarch64
